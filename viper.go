@@ -214,6 +214,7 @@ type Viper struct {
 	// This will only be used if the configuration read is a properties file.
 	properties *properties.Properties
 
+	configMutex    sync.Mutex
 	onConfigChange func(fsnotify.Event)
 }
 
@@ -413,7 +414,9 @@ func SetConfigFile(in string) { v.SetConfigFile(in) }
 
 func (v *Viper) SetConfigFile(in string) {
 	if in != "" {
+		v.configMutex.Lock()
 		v.configFile = in
+		v.configMutex.Unlock()
 	}
 }
 
@@ -1121,6 +1124,9 @@ func (v *Viper) find(lcaseKey string, flagDefault bool) interface{} {
 		nested = len(path) > 1
 	)
 
+	v.configMutex.Lock()
+	defer v.configMutex.Unlock()
+
 	// compute the path through the nested maps to the nested value
 	if nested && v.isPathShadowedInDeepMap(path, castMapStringToMapInterface(v.aliases)) != "" {
 		return nil
@@ -1434,7 +1440,9 @@ func (v *Viper) ReadInConfig() error {
 		return err
 	}
 
+	v.configMutex.Lock()
 	v.config = config
+	v.configMutex.Unlock()
 	return nil
 }
 
@@ -1945,6 +1953,9 @@ func (v *Viper) watchRemoteConfig(provider RemoteProvider) (map[string]interface
 func AllKeys() []string { return v.AllKeys() }
 
 func (v *Viper) AllKeys() []string {
+	v.configMutex.Lock()
+	defer v.configMutex.Unlock()
+
 	m := map[string]bool{}
 	// add all paths, by order of descending priority to ensure correct shadowing
 	m = v.flattenAndMergeMap(m, castMapStringToMapInterface(v.aliases), "")
